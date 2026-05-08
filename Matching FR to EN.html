@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeu d'Association Anglais-Français (Audio)</title>
+    <style>
+        :root {
+            --primary: #4a90e2;
+            --success: #48bb78;
+            --error: #f56565;
+            --bg: #f7fafc;
+            --card-bg: #ffffff;
+            --text: #2d3748;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 { margin-bottom: 10px; color: var(--primary); text-align: center; }
+        p { margin-bottom: 20px; font-size: 1.1rem; text-align: center; }
+
+        .game-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        .column { display: flex; flex-direction: column; gap: 12px; }
+
+        .column-header {
+            text-align: center;
+            font-weight: bold;
+            padding: 10px;
+            background: #edf2f7;
+            border-radius: 8px;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 3px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 60px;
+            font-size: 1.2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .card.image-card { font-size: 2.5rem; }
+        .card:hover:not(.matched) { border-color: var(--primary); transform: translateY(-2px); }
+        .card.selected { border-color: var(--primary); background-color: #ebf8ff; transform: scale(1.05); }
+        .card.matched { background-color: #f0fff4; border-color: var(--success); color: var(--success); cursor: default; }
+        .card.wrong { animation: shake 0.4s; border-color: var(--error); background-color: #fff5f5; }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        #reset-btn {
+            margin-top: 30px;
+            padding: 12px 30px;
+            font-size: 1rem;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        #message { margin-top: 15px; font-weight: bold; height: 24px; }
+    </style>
+</head>
+<body>
+
+    <h1>🇬🇧 Learning English / Apprendre l'Anglais 🇫🇷</h1>
+    <p>Click a card to hear it! / Cliquez sur une carte pour l'entendre !</p>
+
+    <div id="message"></div>
+
+    <div class="game-container">
+        <div class="column" id="col-images"><div class="column-header">Image</div></div>
+        <div class="column" id="col-fr"><div class="column-header">Français</div></div>
+        <div class="column" id="col-en"><div class="column-header">English</div></div>
+    </div>
+
+    <button id="reset-btn">Reset Game / Recommencer</button>
+
+    <script>
+        // --- DATA SECTION ---
+        const vocabularyData = [
+            { id: 1, image: '🐶', fr: 'Chien', en: 'Dog' },
+            { id: 2, image: '🐱', fr: 'Chat', en: 'Cat' },
+            { id: 3, image: '🏠', fr: 'Maison', en: 'House' },
+            { id: 4, image: '📖', fr: 'Livre', en: 'Book' },
+            { id: 5, image: '🪑', fr: 'Chaise', en: 'Chair' },
+            { id: 6, image: '☀️', fr: 'Soleil', en: 'Sun' },
+            { id: 7, image: '🍎', fr: 'Pomme', en: 'Apple' },
+            { id: 8, image: '💧', fr: 'Eau', en: 'Water' },
+            { id: 9, image: '🏫', fr: 'École', en: 'School' },
+            { id: 10, image: '✏️', fr: 'Crayon', en: 'Pencil' }
+        ];
+
+        let selections = { image: null, fr: null, en: null };
+        let matchedIds = [];
+
+        // --- AUDIO FUNCTION ---
+        function speak(text, lang) {
+            // Cancel any current speech
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = lang === 'fr' ? 'fr-FR' : 'en-US';
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function shuffle(array) { return array.sort(() => Math.random() - 0.5); }
+
+        function initGame() {
+            const columns = ['col-images', 'col-fr', 'col-en'];
+            columns.forEach(colId => {
+                const col = document.getElementById(colId);
+                const header = col.firstElementChild;
+                col.innerHTML = '';
+                col.appendChild(header);
+            });
+
+            selections = { image: null, fr: null, en: null };
+            matchedIds = [];
+            document.getElementById('message').textContent = '';
+
+            const shuffledImages = shuffle([...vocabularyData]);
+            const shuffledFr = shuffle([...vocabularyData]);
+            const shuffledEn = shuffle([...vocabularyData]);
+
+            shuffledImages.forEach(item => createCard(item, 'image', 'col-images'));
+            shuffledFr.forEach(item => createCard(item, 'fr', 'col-fr'));
+            shuffledEn.forEach(item => createCard(item, 'en', 'col-en'));
+        }
+
+        function createCard(item, type, columnId) {
+            const card = document.createElement('div');
+            card.className = `card ${type}-card`;
+            card.textContent = item[type];
+            card.dataset.id = item.id;
+            card.dataset.type = type;
+            card.dataset.value = item[type];
+
+            card.addEventListener('click', () => {
+                handleSelection(card);
+                // Speak the word when clicked (if it's text)
+                if (type === 'fr') speak(item.fr, 'fr');
+                if (type === 'en') speak(item.en, 'en');
+            });
+            document.getElementById(columnId).appendChild(card);
+        }
+
+        function handleSelection(card) {
+            const type = card.dataset.type;
+            if (card.classList.contains('matched')) return;
+            if (selections[type] === card) {
+                card.classList.remove('selected');
+                selections[type] = null;
+                return;
+            }
+            if (selections[type]) selections[type].classList.remove('selected');
+            card.classList.add('selected');
+            selections[type] = card;
+            checkMatch();
+        }
+
+        function checkMatch() {
+            if (selections.image && selections.fr && selections.en) {
+                const idImg = selections.image.dataset.id;
+                const idFr = selections.fr.dataset.id;
+                const idEn = selections.en.dataset.id;
+
+                if (idImg === idFr && idFr === idEn) {
+                    document.getElementById('message').textContent = "Excellent! ✨";
+                    Object.values(selections).forEach(card => {
+                        card.classList.remove('selected');
+                        card.classList.add('matched');
+                    });
+                    matchedIds.push(idImg);
+                    selections = { image: null, fr: null, en: null };
+                } else {
+                    Object.values(selections).forEach(card => card.classList.add('wrong'));
+                    setTimeout(() => {
+                        Object.values(selections).forEach(card => {
+                            if (card) card.classList.remove('wrong', 'selected');
+                        });
+                        selections = { image: null, fr: null, en: null };
+                    }, 500);
+                }
+            }
+        }
+
+        document.getElementById('reset-btn').addEventListener('click', initGame);
+        initGame();
+    </script>
+</body>
+</html>
