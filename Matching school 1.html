@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeu d'Association : L'École</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --success: #10b981;
+            --error: #ef4444;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 { margin-bottom: 5px; color: var(--primary); text-align: center; }
+        p { margin-bottom: 20px; font-size: 1.1rem; text-align: center; opacity: 0.8; }
+
+        .game-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .column-header {
+            text-align: center;
+            font-weight: bold;
+            padding: 12px;
+            background: #e2e8f0;
+            border-radius: 8px;
+            text-transform: uppercase;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 3px solid #e2e8f0;
+            border-radius: 15px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 90px;
+            font-size: 1.3rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .en-card .emoji {
+            font-size: 2.2rem;
+            margin-bottom: 5px;
+        }
+
+        .card:hover:not(.matched) {
+            border-color: var(--primary);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        }
+
+        .card.selected {
+            border-color: var(--primary);
+            background-color: #eef2ff;
+            transform: scale(1.02);
+        }
+
+        .card.matched {
+            background-color: #ecfdf5;
+            border-color: var(--success);
+            color: var(--success);
+            cursor: default;
+            opacity: 0.6;
+        }
+
+        .card.wrong {
+            animation: shake 0.4s;
+            border-color: var(--error);
+            background-color: #fef2f2;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+
+        #reset-btn {
+            margin-top: 30px;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        #message {
+            margin-top: 15px;
+            font-weight: bold;
+            font-size: 1.3rem;
+            height: 30px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🏫 School Vocabulary / Le Vocabulaire de l'École 🏫</h1>
+    <p>Match the French subject with the English subject and image!</p>
+
+    <div id="message"></div>
+
+    <div class="game-container">
+        <div class="column" id="col-fr">
+            <div class="column-header">Français</div>
+        </div>
+        <div class="column" id="col-en">
+            <div class="column-header">English</div>
+        </div>
+    </div>
+
+    <button id="reset-btn">Reset Game / Recommencer</button>
+
+    <script>
+        // --- DATA SECTION: SCHOOL WORDS ---
+        const vocabularyData = [
+            { id: 1, image: '🧪', fr: 'Sciences', en: 'Science' },
+            { id: 2, image: '➕', fr: 'Mathématiques', en: 'Math' },
+            { id: 3, image: '📖', fr: 'Lecture', en: 'Reading' },
+            { id: 4, image: '🎨', fr: 'Arts plastiques', en: 'Art' },
+            { id: 5, image: '🎶', fr: 'Musique', en: 'Music' },
+            { id: 6, image: '🌍', fr: 'Géographie', en: 'Geography' },
+            { id: 7, image: '📜', fr: 'Histoire', en: 'History' },
+            { id: 8, image: '💻', fr: 'Informatique', en: 'Computer Science' },
+            { id: 9, image: '🏀', fr: 'Éducation physique', en: 'Gym' },
+            { id: 10, image: '🎒', fr: 'Sac à dos', en: 'Backpack' }
+        ];
+
+        let selections = { fr: null, en: null };
+        let matchedCount = 0;
+
+        function speak(text, lang) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = lang === 'fr' ? 'fr-FR' : 'en-US';
+            utterance.rate = 0.85; 
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function shuffle(array) { return array.sort(() => Math.random() - 0.5); }
+
+        function initGame() {
+            const colFr = document.getElementById('col-fr');
+            const colEn = document.getElementById('col-en');
+            colFr.innerHTML = '<div class="column-header">Français</div>';
+            colEn.innerHTML = '<div class="column-header">English</div>';
+            selections = { fr: null, en: null };
+            matchedCount = 0;
+            document.getElementById('message').textContent = '';
+
+            shuffle([...vocabularyData]).forEach(item => createCard(item, 'fr', 'col-fr'));
+            shuffle([...vocabularyData]).forEach(item => createCard(item, 'en', 'col-en'));
+        }
+
+        function createCard(item, type, columnId) {
+            const card = document.createElement('div');
+            card.className = `card ${type}-card`;
+            card.dataset.id = item.id;
+            card.dataset.type = type;
+
+            if (type === 'fr') {
+                card.textContent = item.fr;
+            } else {
+                card.innerHTML = `<span class="emoji">${item.image}</span><span>${item.en}</span>`;
+            }
+
+            card.addEventListener('click', () => {
+                if (card.classList.contains('matched')) return;
+                if (type === 'fr') speak(item.fr, 'fr');
+                else speak(item.en, 'en');
+                handleSelection(card);
+            });
+            document.getElementById(columnId).appendChild(card);
+        }
+
+        function handleSelection(card) {
+            const type = card.dataset.type;
+            if (selections[type] === card) {
+                card.classList.remove('selected');
+                selections[type] = null;
+                return;
+            }
+            if (selections[type]) selections[type].classList.remove('selected');
+            card.classList.add('selected');
+            selections[type] = card;
+            checkMatch();
+        }
+
+        function checkMatch() {
+            if (selections.fr && selections.en) {
+                if (selections.fr.dataset.id === selections.en.dataset.id) {
+                    document.getElementById('message').textContent = "Excellent! ✨";
+                    document.getElementById('message').style.color = "var(--success)";
+                    const sFr = selections.fr;
+                    const sEn = selections.en;
+                    sFr.classList.add('matched');
+                    sEn.classList.add('matched');
+                    sFr.classList.remove('selected');
+                    sEn.classList.remove('selected');
+                    matchedCount++;
+                    selections = { fr: null, en: null };
+                    if (matchedCount === vocabularyData.length) {
+                        document.getElementById('message').textContent = "Bravo ! You are a pro! 🎓";
+                    }
+                } else {
+                    document.getElementById('message').textContent = "Try again / Réessaie !";
+                    document.getElementById('message').style.color = "var(--error)";
+                    const tempFr = selections.fr;
+                    const tempEn = selections.en;
+                    tempFr.classList.add('wrong');
+                    tempEn.classList.add('wrong');
+                    setTimeout(() => {
+                        tempFr.classList.remove('wrong', 'selected');
+                        tempEn.classList.remove('wrong', 'selected');
+                    }, 500);
+                    selections = { fr: null, en: null };
+                }
+            }
+        }
+
+        document.getElementById('reset-btn').addEventListener('click', initGame);
+        initGame();
+    </script>
+</body>
+</html>
